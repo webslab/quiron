@@ -1,21 +1,12 @@
 ---
+import '$styles/editor.scss'
 import { WlDatabase } from '@webslab/shared/components/database';
 
 import BaseLayout from '$layouts/Base.astro'
 
 import EditorTemplate from '$components/admin/posts/editor/Template.astro'
+import HeroPicker from '$components/admin/posts/HeroPicker.astro'
 ---
-
-<style is:global>
-main {
-  min-height: 90svh;
-}
-</style>
-
-<link
-  rel="stylesheet"
-  onload="this.onload=null;this.rel='stylesheet'"
-  href="https://unpkg.com/jodit@4.0.1/es2021/jodit.min.css" />
 
 <BaseLayout
   auth={true}
@@ -44,37 +35,42 @@ main {
 
   <WlDatabase
     live={false}
-    target=".container"
+    target="section"
     query=""
     client:only="lit">
-    <section>
-      <div class="container"></div>
-    </section>
+    <div>
+      <section></section>
+    </div>
 
     <EditorTemplate />
+    <HeroPicker class="d-none" id="foo" inputId="hero"/>
+
+    <script>
+      import { joditInit } from '$lib/editor'
+      import { initWlDatabase } from '$lib/utils'
+
+      const postId = new URLSearchParams(window.location.search).get('id')
+      const query = `SELECT time::format(publish, '%Y-%m-%d') as publish_fmt, author.name as authorName, * FROM ${postId};`
+
+      // if (!postId) { return }
+
+      initWlDatabase(query)
+    </script>
   </WlDatabase>
 
   <script>
     import { StringRecordId } from 'surrealdb'
 
-    import { Jodit, joditInit, waitElement } from '$lib/editorUtils'
+    import { joditInit } from '$lib/editor'
     import { authService } from '$lib/auth'
-    import type { Post } from '$lib/types';
+    import { getWlDatabase } from '$lib/utils'
+    import { WEBSLAB_DOMAIN, WEBSLAB_PROJECT, WEBSLAB_TOKEN } from '$lib/consts'
 
-    let jodit = undefined;
+    const postId = new URLSearchParams(window.location.search).get('id')
     let currentPage = 0
 
-    customElements.whenDefined('wl-database').then(async () => {
-      const wlDatabase: HTMLElement = await waitElement('wl-database');
-      const postId = new URLSearchParams(window.location.search).get('id')
-      const query = `SELECT author.name as authorName, * FROM ${postId};`
-
-      if (!postId || !wlDatabase) {
-        return
-      }
-
-      wlDatabase.query = query
-      wlDatabase.auth = authService
+    getWlDatabase().then(async (wlDatabase) => {
+      import('$lib/hero.ts')
 
       wlDatabase.addEventListener('wl-task:completed', (evt) => {
         const db = authService.getDb()
@@ -84,16 +80,28 @@ main {
         const hero = document.getElementById('hero') as HTMLInputElement
         const title = document.getElementById('title') as HTMLInputElement
         const author = document.getElementById('author').dataset;
+        const publish = document.getElementById('publish') as HTMLInputElement
         const content = document.getElementById('post-content') as HTMLTextAreaElement
         const tableName = document.getElementById('table-name')
         const pagesContainer = document.getElementById('pages-container')
 
-        jodit = joditInit(content)
+        // hero
+        const foo = document.getElementById('foo')
+        const heroPicker = document.getElementById('heroPicker')
+        const heroPreview = document.getElementById('hero-preview') as HTMLImageElement
+        const heroCurrent = heroPicker.dataset.current
+
+        heroPreview.src = heroCurrent
+        hero.value = heroCurrent
+        heroPicker.appendChild(foo)
+        foo.classList.remove('d-none')
+
+        const jodit = joditInit(content)
 
         const table = evt.detail.result[0][0].id.tb
-        tableName.innerText = table.charAt(0).toUpperCase() + table.slice(1)
-
         const pages = evt.detail.result[0][0].content
+
+        tableName.innerText = table.charAt(0).toUpperCase() + table.slice(1)
 
         if (table === 'module') {
           pagesList(pages)
@@ -108,6 +116,7 @@ main {
             title: title.value,
             author: new StringRecordId(author.author),
             content: pages,
+            publish: new Date(publish.value)
           }
 
           // TODO: why?
@@ -137,52 +146,58 @@ main {
 
           pagesList.insertBefore(item, add.parentNode)
         })
+
+        function addItemListener(item, index, pages: string[]) {
+          const del = item.querySelector('#del-page')
+          const span = item.querySelector('span')
+
+          span.addEventListener('click', () => {
+            const hasChanged = jodit.currentPlace.editor.innerHTML !== pages[currentPage]
+
+            if (pages[currentPage] && hasChanged) {
+              alert('save changes before switching pages')
+              return;
+            }
+
+            jodit.currentPlace.editor.innerHTML = pages[index] || ''
+            currentPage = parseInt(item.dataset.index)
+          })
+
+          del.addEventListener('click', async (evt) => {
+            if (index === 0) {
+              alert('you cannot delete the first page')
+              return;
+            }
+
+            if (index !== currentPage) {
+              alert('you cannot delete a page that is not the current page')
+              return;
+            }
+
+            pages.splice(index, 1)
+            const pagesList = document.getElementById('pages-list')
+
+            pagesList.removeChild(item)
+
+            const res = await db.merge(new StringRecordId(postId), { content: pages })
+
+            // currentPage = 0
+            // jodit.currentPlace.editor.innerHTML = pages[currentPage] || ''
+
+            // reload the current page
+            window.location = `/auth/admin/content/edit?id=${postId}`
+          })
+        }
+
+        function pagesList(pages: string[]) {
+          const pagesList = document.getElementById('pages-list')
+          const items = pagesList.querySelectorAll('li')
+
+          items.forEach((item, index) => {
+            if (item.dataset.index) addItemListener(item, index, pages)
+          })
+        }
       })
-
-      function addItemListener(item, index, pages: string[]) {
-        const del = item.querySelector('#del-page')
-        const span = item.querySelector('span')
-
-        span.addEventListener('click', () => {
-          const hasChanged = jodit.currentPlace.editor.innerHTML !== pages[currentPage]
-
-          if (pages[currentPage] && hasChanged) {
-            alert('save changes before switching pages')
-            return;
-          }
-
-          jodit.currentPlace.editor.innerHTML = pages[index] || ''
-          currentPage = parseInt(item.dataset.index)
-        })
-
-        del.addEventListener('click', (evt) => {
-          if (pages.length === 1) {
-            alert('you must have at least one page')
-            return;
-          }
-
-          if (index !== currentPage) {
-            alert('you must delete the current page')
-            return;
-          }
-
-          console.log('del', index)
-          // evt.stopPropagation()
-          // pages.splice(index, 1)
-          // const pagesList = document.getElementById('pages-list')
-          // pagesList.removeChild(item)
-          // pagesList(pages)
-        })
-      }
-
-      function pagesList(pages: string[]) {
-        const pagesList = document.getElementById('pages-list')
-        const items = pagesList.querySelectorAll('li')
-
-        items.forEach((item, index) => {
-          if (item.dataset.index) addItemListener(item, index, pages)
-        })
-      }
     })
   </script>
 </BaseLayout>

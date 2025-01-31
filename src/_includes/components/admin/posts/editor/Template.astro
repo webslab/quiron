@@ -30,16 +30,17 @@
         />
       </div>
 
-      <div class="mb-3">
-        <label for="hero" class="form-label">Hero Image</label>
-        <input type="text" class="form-control" id="hero" value="{{ item.hero }}" />
-        <!-- <input type="file" class="form-control" id="hero" /> -->
+      <div class="mb-3" id="heroPicker" data-current="{{ item.hero }}"></div>
 
-        <img
-          id="hero-preview"
-          class="img-fluid mt-2 rounded"
-          loading="lazy"
-          src="{{ item.hero }}" />
+      <div class="mb-3">
+        <label for="publish" class="form-label">Publish date</label>
+
+        <input
+          type="date"
+          class="form-control"
+          id="publish"
+          name="publish"
+          value="{{ item.publish_fmt }}" />
       </div>
 
       <div

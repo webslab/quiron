@@ -1,5 +1,11 @@
 # TODO:
 
+- [ ] DB: (shared) url should be host and live select the protocol
+- [ ] astro: update to 5.0.3
+- [ ] create user: modules tab first
+- [ ] docs: create base branch to follow base template
+  - required for CI
+- [ ] jodit: plugin clean html
 - [ ] template: ignore some pages
 - [x] editor: add class _img-fluid_ for images
   - solved by css styles
