@@ -1,10 +1,12 @@
 ---
 import '$styles/editor.scss'
-import { WlDatabase } from '@webslab/shared/components/database';
+// import { WlDatabase } from '@webslab/shared/components/database';
+import { WlDatabase } from '@webslab/shared/components';
 
 import BaseLayout from '$layouts/Base.astro'
 
 import EditorTemplate from '$components/admin/posts/editor/Template.astro'
+import QuestionModal from '$components/admin/posts/editor/Modal.astro'
 import HeroPicker from '$components/admin/posts/HeroPicker.astro'
 ---
 
@@ -59,10 +61,15 @@ import HeroPicker from '$components/admin/posts/HeroPicker.astro'
   </WlDatabase>
 
   <script>
+    // import '@webslab/shared/components/question';
+    // import '@webslab/shared/question';
+    import type { Question } from '$lib/types'
+
     import { StringRecordId } from 'surrealdb'
 
     import { joditInit } from '$lib/editor'
     import { authService } from '$lib/auth'
+    import { QuestionService } from '$lib/question'
     import { getWlDatabase } from '$lib/utils'
     import { WEBSLAB_DOMAIN, WEBSLAB_PROJECT, WEBSLAB_TOKEN } from '$lib/consts'
 
@@ -96,7 +103,7 @@ import HeroPicker from '$components/admin/posts/HeroPicker.astro'
         heroPicker.appendChild(foo)
         foo.classList.remove('d-none')
 
-        const jodit = joditInit(content)
+        const jodit = joditInit(content, "questionModal")
 
         const table = evt.detail.result[0][0].id.tb
         const pages = evt.detail.result[0][0].content
@@ -108,8 +115,37 @@ import HeroPicker from '$components/admin/posts/HeroPicker.astro'
           pagesContainer.classList.remove('d-none')
         }
 
+        // const questionService = new QuestionService(db, "questionModal");
+
+        // const paperService = {
+        //     modal: new Modal(document.getElementById('questionModal')),
+        //     config: async function (question_id: Question): Promise<Question | void> {
+        //         console.log(question_id);
+        //         this.modal.show();
+        //     }
+        // };
+
+        // document.querySelectorAll('wl-question').forEach((question) => {
+        //     question.actions = questionService;
+        //
+        //     question.addEventListener('dblclick', () => {
+        //         question.setAttribute('edit', 'true')
+        //     })
+        // })
+
         save.addEventListener('click', async () => {
           pages[currentPage] = jodit.currentPlace.editor.innerHTML
+
+          let alert
+          document.querySelectorAll("wl-question[edit]").forEach((el) => {
+            el.removeAttribute('edit')
+            alert ?? true
+          })
+
+          if (alert) {
+            window.alert('There was editable content. Please confirm changes before saving.')
+            return;
+          }
 
           const post = {
             hero: hero.value,
@@ -201,3 +237,5 @@ import HeroPicker from '$components/admin/posts/HeroPicker.astro'
     })
   </script>
 </BaseLayout>
+
+<QuestionModal modalId="questionModal" />
